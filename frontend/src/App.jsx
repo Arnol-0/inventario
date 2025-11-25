@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth, db } from './firebase';
+import { signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { auth, db, firebaseConfig } from './firebase';
 import { collection, doc, getDocs, getDoc, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { Coffee, ShoppingCart, Package, LogOut, User, Lock, X, Settings } from 'lucide-react';
 
@@ -129,6 +130,10 @@ const CafeteriaSystem = () => {
     e.preventDefault();
     const ident = (loginData.email || '').trim().toLowerCase();
     const pass = loginData.password || '';
+    if (!auth) {
+      setError('Configura Firebase en .env');
+      return;
+    }
     try {
       const cred = await signInWithEmailAndPassword(auth, ident, pass);
       let meta = null;
@@ -166,6 +171,35 @@ const CafeteriaSystem = () => {
     } catch (err) {
       setError('Correo o contraseña incorrectos');
     }
+  };
+
+  const createAdmin = async () => {
+    const ident = (loginData.email || '').trim().toLowerCase();
+    const pass = loginData.password || '';
+    if (!auth || !db) {
+      setError('Configura Firebase en .env');
+      return;
+    }
+    if (!ident || !pass) {
+      setError('Ingresa correo y contraseña');
+      return;
+    }
+    try {
+      await createUserWithEmailAndPassword(auth, ident, pass);
+    } catch (err) {
+      try {
+        await signInWithEmailAndPassword(auth, ident, pass);
+      } catch {
+        setError('No se pudo crear el admin');
+        return;
+      }
+    }
+    const meta = { username: 'admin', email: ident, role: 'admin', cafeteria: 'Cafetería Central' };
+    try { await setDoc(doc(db, 'users', 'admin'), meta); } catch {}
+    saveUsers({ ...users, admin: meta });
+    setCurrentUser(meta);
+    setError('');
+    setLoginData({ email: '', password: '' });
   };
 
   const handleLogout = async () => {
@@ -399,6 +433,13 @@ const CafeteriaSystem = () => {
               className="inline-flex items-center justify-center rounded-lg font-semibold transition bg-amber-600 text-white hover:bg-amber-700 w-full py-3"
             >
               Iniciar Sesión
+            </button>
+            <button
+              type="button"
+              onClick={createAdmin}
+              className="inline-flex items-center justify-center rounded-lg font-semibold transition bg-gray-100 text-gray-800 hover:bg-gray-200 w-full py-3"
+            >
+              Crear usuario admin
             </button>
           </form>
 
@@ -1148,8 +1189,13 @@ const CafeteriaSystem = () => {
       const email = (newUser.email||'').trim().toLowerCase();
       const role = newUser.role||'vendedor';
       const cafeteria = (newUser.cafeteria||'').trim();
+      const password = newUser.password || '';
       if (!username || !email) {
         setUserError('Completa usuario y correo');
+        return;
+      }
+      if (!password || password.length < 6) {
+        setUserError('Contraseña mínima de 6 caracteres');
         return;
       }
       const emailTaken = Object.values(users).some(u => (u.email||'').toLowerCase() === email.toLowerCase());
@@ -1162,6 +1208,11 @@ const CafeteriaSystem = () => {
         return;
       }
       try {
+        if (!auth || !db) { setUserError('Configura Firebase'); return; }
+        const tempApp = initializeApp(firebaseConfig, 'temp');
+        const tempAuth = getAuth(tempApp);
+        await createUserWithEmailAndPassword(tempAuth, email, password);
+        try { await deleteApp(tempApp); } catch {}
         await setDoc(doc(db, 'users', username), { username, email, role, cafeteria });
       } catch (err) {
         setUserError('No se pudo crear el usuario');
@@ -1169,7 +1220,7 @@ const CafeteriaSystem = () => {
       }
       const next = { ...users, [username]: { username, email, role, cafeteria } };
       saveUsers(next);
-      setNewUser({ username: '', email: '', role: 'vendedor', cafeteria: '' });
+      setNewUser({ username: '', email: '', password: '', role: 'vendedor', cafeteria: '' });
       setUserError('');
     };
     return (
@@ -1468,6 +1519,13 @@ const CafeteriaSystem = () => {
                           value={newUser.email}
                           onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                           placeholder="Correo"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                        />
+                        <input
+                          type="password"
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                          placeholder="Contraseña"
                           className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                         />
                         

@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  body { margin: 0; }
+}

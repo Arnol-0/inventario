@@ -434,13 +434,6 @@ const CafeteriaSystem = () => {
             >
               Iniciar Sesión
             </button>
-            <button
-              type="button"
-              onClick={createAdmin}
-              className="inline-flex items-center justify-center rounded-lg font-semibold transition bg-gray-100 text-gray-800 hover:bg-gray-200 w-full py-3"
-            >
-              Crear usuario admin
-            </button>
           </form>
 
           
